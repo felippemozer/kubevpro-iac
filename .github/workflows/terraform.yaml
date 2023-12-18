@@ -1,0 +1,55 @@
+name: Vprofile-IAAC
+on:
+  push:
+    branches:
+      - main
+      - stage
+    paths-ignore:
+      - .gitignore
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - .gitignore
+
+env:
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  BUCKET_TF_STATE: ${{ secrets.BUCKET_TF_STATE }}
+  AWS_REGION: sa-east-1
+  EKS_CLUSTER: gitops-eks
+
+jobs:
+  terraform:
+    name: terraform-apply
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+
+      - name: Init Backend and Providers
+        id: init
+        run: terraform init -backend-config="bucket=$BUCKET_TF_STATE"
+      
+      - name: Check code format
+        id: fmt
+        run: terraform fmt -check
+      
+      - name: Validate code syntax
+        id: validate
+        run: terraform validate
+      
+      - name: Plan code
+        id: plan
+        run: terraform plan -no-color -input=false -out planfile
+        continue-on-error: true
+
+      - name: Plan status
+        if: steps.plan.outcome == 'failure'
+        run: exit 1
